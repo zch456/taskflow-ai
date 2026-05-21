@@ -1,0 +1,40 @@
+version: "3.9"
+
+services:
+  taskflow-api:
+    build: .
+    container_name: taskflow-api
+    ports:
+      - "8080:8080"
+    environment:
+      - TASKFLOW_LLM_API_KEY=${LLM_API_KEY}
+      - TASKFLOW_LLM_API_BASE_URL=${LLM_API_BASE_URL:-https://api.openai.com/}
+      - TASKFLOW_LLM_MODEL=${LLM_MODEL:-gpt-4o}
+      - TASKFLOW_AGENT_MAX_STEPS=10
+      - TASKFLOW_AGENT_TIMEOUT_SECONDS=30
+      - TASKFLOW_AGENT_CACHE_ENABLED=true
+      - TASKFLOW_AUTH_ENABLED=${AUTH_ENABLED:-false}
+      - TASKFLOW_AUTH_API_KEY=${API_KEY:-}
+      - JAVA_OPTS=-Xmx512m
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  # Optional: PostgreSQL for production use
+  # postgres:
+  #   image: postgres:16-alpine
+  #   container_name: taskflow-db
+  #   environment:
+  #     POSTGRES_DB: taskflow
+  #     POSTGRES_USER: taskflow
+  #     POSTGRES_PASSWORD: ${DB_PASSWORD}
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - pgdata:/var/lib/postgresql/data
+  #
+  # volumes:
+  #   pgdata:

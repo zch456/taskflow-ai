@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TaskFlow AI</title>
+<style>
+  :root {
+    --bg: #f8f9fb;
+    --surface: #ffffff;
+    --border: #e5e7eb;
+    --text: #1a1a2e;
+    --text-muted: #6b7280;
+    --primary: #4f46e5;
+    --primary-hover: #4338ca;
+    --primary-light: #eef2ff;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.04);
+    --shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+    --shadow-md: 0 4px 6px rgba(0,0,0,.04), 0 2px 4px rgba(0,0,0,.04);
+    --transition: 150ms ease;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --border: #2d3148;
+      --text: #e5e7eb;
+      --text-muted: #9ca3af;
+      --primary: #818cf8;
+      --primary-hover: #6366f1;
+      --primary-light: #1e1b4b;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,.2);
+      --shadow: 0 1px 3px rgba(0,0,0,.3);
+      --shadow-md: 0 4px 6px rgba(0,0,0,.4);
+    }
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Header */
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    box-shadow: var(--shadow-sm);
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    font-size: 18px;
+    letter-spacing: -.01em;
+  }
+  .logo-icon {
+    width: 32px; height: 32px;
+    background: var(--primary);
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 14px;
+  }
+  .health-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--success);
+    display: inline-block;
+    margin-right: 6px;
+  }
+  .health-dot.off { background: var(--danger); }
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  /* Layout */
+  .layout {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 24px;
+    display: grid;
+    grid-template-columns: 400px 1fr;
+    grid-template-rows: auto 1fr;
+    gap: 20px;
+    min-height: calc(100vh - 56px);
+  }
+
+  /* Cards */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    box-shadow: var(--shadow);
+  }
+  .card-header {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  /* Left Panel */
+  .panel-submit { grid-row: 1 / 3; }
+
+  .panel-submit .card:first-child { margin-bottom: 20px; }
+
+  textarea {
+    width: 100%;
+    min-height: 120px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    font: inherit;
+    font-size: 14px;
+    resize: vertical;
+    background: var(--bg);
+    color: var(--text);
+    transition: border var(--transition);
+    line-height: 1.6;
+  }
+  textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-light);
+  }
+
+  .options-row {
+    display: flex;
+    gap: 12px;
+    margin-top: 12px;
+    align-items: center;
+  }
+  .option {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .option label {
+    font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+  .option input {
+    width: 64px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font: inherit;
+    font-size: 13px;
+    background: var(--bg);
+    color: var(--text);
+    text-align: center;
+  }
+  .option input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px var(--primary-light);
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border: none;
+    border-radius: var(--radius-sm);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition);
+    white-space: nowrap;
+    letter-spacing: .01em;
+  }
+  .btn:active { transform: scale(.98); }
+  .btn-primary {
+    background: var(--primary);
+    color: #fff;
+    width: 100%;
+    margin-top: 12px;
+    padding: 10px;
+    font-size: 14px;
+  }
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-primary:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover { background: var(--bg); }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+
+  /* Result area */
+  .result-area {
+    margin-top: 14px;
+    min-height: 80px;
+    background: var(--bg);
+    border-radius: var(--radius-sm);
+    padding: 14px;
+    font-size: 13px;
+    word-break: break-word;
+    line-height: 1.6;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+  .result-area .status-badge { margin-bottom: 8px; }
+  .result-empty {
+    color: var(--text-muted);
+    text-align: center;
+    padding: 20px 0;
+    font-size: 13px;
+  }
+
+  /* Status badge */
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .03em;
+    text-transform: uppercase;
+  }
+  .status-COMPLETED { background: #d1fae5; color: #065f46; }
+  .status-RUNNING { background: #fef3c7; color: #92400e; }
+  .status-FAILED { background: #fee2e2; color: #991b1b; }
+  .status-TIMEOUT { background: #fee2e2; color: #991b1b; }
+  .status-PENDING { background: #e0e7ff; color: #3730a3; }
+  @media (prefers-color-scheme: dark) {
+    .status-COMPLETED { background: #064e3b; color: #6ee7b7; }
+    .status-RUNNING { background: #78350f; color: #fcd34d; }
+    .status-FAILED { background: #7f1d1d; color: #fca5a5; }
+    .status-TIMEOUT { background: #7f1d1d; color: #fca5a5; }
+    .status-PENDING { background: #312e81; color: #a5b4fc; }
+  }
+
+  /* Right panel: history */
+  .panel-history {
+    grid-column: 2;
+    grid-row: 1 / 3;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  th {
+    text-align: left;
+    padding: 10px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+  }
+  td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  tr {
+    cursor: pointer;
+    transition: background var(--transition);
+  }
+  tr:hover { background: var(--primary-light); }
+  tr.selected { background: var(--primary-light); outline: 2px solid var(--primary); outline-offset: -2px; border-radius: 4px; }
+
+  /* Detail panel */
+  .step-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .step-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+    transition: border var(--transition);
+  }
+  .step-index {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .step-index.fail { background: var(--danger); }
+  .step-body {
+    flex: 1;
+    min-width: 0;
+  }
+  .step-tool {
+    font-weight: 600;
+    font-size: 13px;
+    margin-bottom: 2px;
+  }
+  .step-action {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+  .step-output {
+    font-size: 12px;
+    background: var(--surface);
+    border-radius: 4px;
+    padding: 8px;
+    margin-top: 6px;
+    word-break: break-all;
+    max-height: 120px;
+    overflow-y: auto;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+  }
+
+  /* Tools grid */
+  .tools-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+  }
+  .tool-chip {
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+  }
+  .tool-name {
+    font-weight: 600;
+    font-size: 13px;
+    margin-bottom: 3px;
+  }
+  .tool-desc {
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.4;
+  }
+
+  /* Loading spinner */
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin .6s linear infinite;
+    display: inline-block;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .loading-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 32px;
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    padding: 10px 18px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 500;
+    z-index: 100;
+    animation: slideUp .3s ease;
+    box-shadow: var(--shadow-md);
+  }
+  .toast-success { background: #065f46; color: #d1fae5; }
+  .toast-error { background: #7f1d1d; color: #fecaca; }
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (max-width: 900px) {
+    .layout {
+      grid-template-columns: 1fr;
+    }
+    .panel-submit { grid-row: auto; }
+    .panel-history { grid-column: 1; grid-row: auto; }
+  }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="logo">
+    <div class="logo-icon">T</div>
+    TaskFlow AI
+  </div>
+  <div class="header-right">
+    <span><span class="health-dot" id="healthDot"></span><span id="healthText">checking</span></span>
+    <span id="toolCount"></span>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- Left: Submit + Result -->
+  <aside class="panel-submit">
+    <div class="card">
+      <div class="card-header">提交任务</div>
+      <textarea id="taskInput" placeholder="用自然语言描述你的任务，例如：&#10;&#10;查询北京今天天气并推荐穿衣搭配&#10;计算 (23 * 17) + (456 / 12) 的结果&#10;搜索 Python 异步编程最佳实践"></textarea>
+      <div class="options-row">
+        <div class="option">
+          <label>超时(秒)</label>
+          <input id="timeout" type="number" value="30" min="1" max="300">
+        </div>
+        <div class="option">
+          <label>最大步数</label>
+          <input id="maxSteps" type="number" value="10" min="1" max="50">
+        </div>
+      </div>
+      <button class="btn btn-primary" id="submitBtn" onclick="executeTask()">
+        <span id="submitIcon">▶</span>
+        <span id="submitText">执行任务</span>
+      </button>
+    </div>
+
+    <div class="card">
+      <div class="card-header">执行结果</div>
+      <div class="result-area" id="resultArea">
+        <div class="result-empty">提交一个任务以查看结果</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Right: History + Detail + Tools -->
+  <main class="panel-history">
+    <div class="card">
+      <div class="card-header">
+        <span>执行历史</span>
+        <button class="btn btn-ghost btn-sm" onclick="loadHistory()">刷新</button>
+      </div>
+      <div id="historyContent">
+        <div class="loading-state"><span class="spinner"></span>加载中</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">执行步骤详情 <span id="detailTitle" style="font-weight:400;font-size:12px;"></span></div>
+      <div id="detailContent">
+        <div class="empty-state">点击左侧历史记录中的任务查看详情</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">可用工具</div>
+      <div class="tools-grid" id="toolsGrid">
+        <div class="loading-state"><span class="spinner"></span>加载中</div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+const API = {
+  execute:   ['POST', '/api/v1/agent/execute'],
+  status:    id => ['GET', `/api/v1/agent/status/${id}`],
+  history:   ['GET', '/api/v1/agent/history?page=0&size=50'],
+  details:   id => ['GET', `/api/v1/agent/${id}/details`],
+  tools:     ['GET', '/api/v1/tools'],
+  health:    ['GET', '/actuator/health']
+};
+
+async function api(method, url, body) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(url, opts);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || err.detail || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+function statusBadge(status) {
+  return `<span class="status-badge status-${status}">${status}</span>`;
+}
+
+function toast(msg, type='success') {
+  const t = document.createElement('div');
+  t.className = `toast toast-${type}`;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+// Health check
+(async function healthCheck() {
+  try {
+    const d = await api(...API.health);
+    document.getElementById('healthDot').className = d.status === 'UP' ? 'health-dot' : 'health-dot off';
+    document.getElementById('healthText').textContent = d.status === 'UP' ? '服务正常' : '服务异常';
+  } catch(e) {
+    document.getElementById('healthDot').className = 'health-dot off';
+    document.getElementById('healthText').textContent = '无法连接';
+  }
+})();
+
+// Load tools
+(async function loadTools() {
+  try {
+    const tools = await api(...API.tools);
+    const grid = document.getElementById('toolsGrid');
+    document.getElementById('toolCount').textContent = tools.length + ' 个工具已注册';
+    if (!tools.length) {
+      grid.innerHTML = '<div class="empty-state">暂无已注册工具</div>';
+      return;
+    }
+    grid.innerHTML = tools.map(t => `
+      <div class="tool-chip">
+        <div class="tool-name">${esc(t.name)}</div>
+        <div class="tool-desc">${esc(t.description)}</div>
+      </div>
+    `).join('');
+  } catch(e) {
+    document.getElementById('toolsGrid').innerHTML = '<div class="empty-state">加载失败</div>';
+  }
+})();
+
+// Load history
+async function loadHistory() {
+  const container = document.getElementById('historyContent');
+  container.innerHTML = '<div class="loading-state"><span class="spinner"></span>加载中</div>';
+  try {
+    const page = await api(...API.history);
+    const tasks = page.content || [];
+    if (!tasks.length) {
+      container.innerHTML = '<div class="empty-state">暂无执行记录，提交一个任务开始吧</div>';
+      return;
+    }
+    container.innerHTML = `
+      <table>
+        <thead><tr>
+          <th>任务ID</th><th>描述</th><th>状态</th><th>耗时</th>
+        </tr></thead>
+        <tbody>
+          ${tasks.map(t => `
+            <tr onclick="selectTask('${t.taskId}')" id="row-${t.taskId}">
+              <td style="font-family:monospace;font-size:12px;">${t.taskId}</td>
+              <td>${esc(t.result || t.taskId)}</td>
+              <td>${statusBadge(t.status)}</td>
+              <td>${t.executionTimeMs}ms</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  } catch(e) {
+    container.innerHTML = `<div class="empty-state">加载失败: ${esc(e.message)}</div>`;
+  }
+}
+
+// Select task and show details
+let selectedTaskId = null;
+
+async function selectTask(taskId) {
+  selectedTaskId = taskId;
+  document.querySelectorAll('tr.selected').forEach(r => r.classList.remove('selected'));
+  document.getElementById(`row-${taskId}`)?.classList.add('selected');
+
+  document.getElementById('detailTitle').textContent = `— ${taskId}`;
+  const detail = document.getElementById('detailContent');
+  detail.innerHTML = '<div class="loading-state"><span class="spinner"></span>加载详情</div>';
+
+  try {
+    const task = await api(...API.details(taskId));
+    const steps = task.executionSteps || [];
+    if (!steps.length) {
+      detail.innerHTML = '<div class="empty-state">该任务没有执行步骤记录</div>';
+      return;
+    }
+    detail.innerHTML = `
+      <div style="margin-bottom:12px;display:flex;align-items:center;gap:10px;">
+        ${statusBadge(task.status)}
+        <span style="font-size:12px;color:var(--text-muted);">总耗时 ${task.executionTimeMs}ms</span>
+        <span style="font-size:12px;color:var(--text-muted);">${steps.length} 个步骤</span>
+      </div>
+      <div style="margin-bottom:10px;font-size:13px;line-height:1.5;max-height:80px;overflow-y:auto;">
+        <strong>最终结果:</strong> ${esc(task.result || '无')}
+      </div>
+      <div class="step-list">
+        ${steps.map((s, i) => `
+          <div class="step-item">
+            <div class="step-index ${s.success ? '' : 'fail'}">${s.stepIndex || i + 1}</div>
+            <div class="step-body">
+              <div class="step-tool">${esc(s.toolName)} <span style="font-weight:400;font-size:11px;color:var(--text-muted);">${s.executionTimeMs}ms</span></div>
+              <div class="step-action">${esc(s.action)}</div>
+              ${s.outputResult ? `<div class="step-output">${esc(s.outputResult)}</div>` : ''}
+              ${!s.success && s.errorMessage ? `<div style="color:var(--danger);font-size:11px;margin-top:4px;">✕ ${esc(s.errorMessage)}</div>` : ''}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  } catch(e) {
+    detail.innerHTML = `<div class="empty-state">加载失败: ${esc(e.message)}</div>`;
+  }
+}
+
+// Execute task
+async function executeTask() {
+  const task = document.getElementById('taskInput').value.trim();
+  if (!task) {
+    toast('请输入任务描述', 'error');
+    return;
+  }
+
+  const timeout = parseInt(document.getElementById('timeout').value) || 30;
+  const maxSteps = parseInt(document.getElementById('maxSteps').value) || 10;
+
+  const btn = document.getElementById('submitBtn');
+  const icon = document.getElementById('submitIcon');
+  const text = document.getElementById('submitText');
+  btn.disabled = true;
+  icon.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px;border-top-color:#fff;"></span>';
+  text.textContent = '执行中...';
+
+  const resultArea = document.getElementById('resultArea');
+  resultArea.innerHTML = '<div class="loading-state"><span class="spinner"></span>任务执行中，请稍候...</div>';
+
+  try {
+    const result = await api(...API.execute, { task, timeout, maxSteps });
+    renderResult(result);
+    toast('任务执行完成');
+    loadHistory();
+  } catch(e) {
+    resultArea.innerHTML = `<div style="color:var(--danger);font-size:13px;">执行失败: ${esc(e.message)}</div>`;
+    toast(e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    icon.textContent = '▶';
+    text.textContent = '执行任务';
+  }
+}
+
+function renderResult(result) {
+  const area = document.getElementById('resultArea');
+  const steps = result.executionSteps || [];
+  area.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+      ${statusBadge(result.status)}
+      <span style="font-size:11px;color:var(--text-muted);font-family:monospace;">${result.taskId}</span>
+      <span style="font-size:12px;color:var(--text-muted);">${result.executionTimeMs}ms · ${steps.length} 步</span>
+    </div>
+    <div style="font-size:13px;line-height:1.6;white-space:pre-wrap;">${esc(result.result || '')}</div>
+    ${steps.length ? `
+      <details style="margin-top:12px;">
+        <summary style="cursor:pointer;font-size:12px;color:var(--text-muted);">查看执行步骤 (${steps.length})</summary>
+        <div class="step-list" style="margin-top:8px;">
+          ${steps.map((s, i) => `
+            <div class="step-item">
+              <div class="step-index ${s.success ? '' : 'fail'}">${s.stepIndex || i + 1}</div>
+              <div class="step-body">
+                <div class="step-tool">${esc(s.toolName)}</div>
+                <div class="step-action">${esc(s.action)}</div>
+                ${s.outputResult ? `<div class="step-output">${esc(s.outputResult)}</div>` : ''}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </details>
+    ` : ''}
+  `;
+}
+
+function esc(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// Keyboard shortcut
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+    e.preventDefault();
+    executeTask();
+  }
+});
+
+// Init
+loadHistory();
+</script>
+</body>
+</html>

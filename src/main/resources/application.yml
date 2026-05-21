@@ -1,0 +1,65 @@
+spring:
+  application:
+    name: taskflow-ai
+  jpa:
+    show-sql: false
+    hibernate:
+      ddl-auto: create-drop
+  datasource:
+    url: jdbc:h2:mem:taskflow;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+# Redis (disabled by default for local dev; enable with spring.data.redis.host)
+# spring:
+#   data:
+#     redis:
+#       host: localhost
+#       port: 6379
+#       timeout: 2000ms
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+  show-actuator: true
+
+taskflow:
+  file-operation:
+    whitelist-dir: /tmp/taskflow
+  agent:
+    max-steps: 10
+    timeout-seconds: 30
+    cache-enabled: false
+  llm:
+    provider: deepseek
+    model: deepseek-v4-flash
+    temperature: 0.7
+    max-tokens: 2000
+    api-key: ${LLM_API_KEY:}
+    api-base-url: https://api.deepseek.com
+  weather:
+    api-key: ${WEATHER_API_KEY:}
+    api-base-url: ${WEATHER_API_BASE_URL:https://api.weatherapi.com/v1/current.json}
+  search:
+    api-key: ${SEARCH_API_KEY:}
+    api-base-url: ${SEARCH_API_BASE_URL:}
+  auth:
+    enabled: false
+    header-name: X-API-Key

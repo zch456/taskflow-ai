@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(java *)",
+      "Bash(mvn --version)",
+      "Bash(mvn compile *)",
+      "Bash(mvn test *)",
+      "Bash(mvn wrapper:wrapper *)",
+      "Bash(./mvnw compile *)",
+      "Bash(./mvnw test *)",
+      "Read(//Users/chenghe/**)",
+      "Read(//Users/chenghe/.claude/**)"
+    ]
+  }
+}

@@ -1,0 +1,90 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:taskflow}
+    driver-class-name: org.postgresql.Driver
+    username: ${DB_USER:taskflow}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      idle-timeout: 300000
+      connection-timeout: 10000
+      max-lifetime: 1200000
+      leak-detection-threshold: 60000
+      pool-name: TaskFlowHikariPool
+  jpa:
+    database: postgresql
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        jdbc:
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 4
+          max-wait: 2000ms
+
+server:
+  port: ${SERVER_PORT:8080}
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/plain
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+  endpoint:
+    health:
+      show-details: when-authorized
+
+logging:
+  level:
+    root: WARN
+    com.taskflow: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+taskflow:
+  agent:
+    max-steps: 15
+    timeout-seconds: 60
+    cache-enabled: true
+    idempotency-enabled: true
+  llm:
+    provider: ${LLM_PROVIDER:openai}
+    model: ${LLM_MODEL:gpt-4o}
+    temperature: ${LLM_TEMPERATURE:0.3}
+    max-tokens: ${LLM_MAX_TOKENS:4096}
+    api-key: ${LLM_API_KEY}
+    api-base-url: ${LLM_API_BASE_URL}
+  auth:
+    enabled: true
+    header-name: X-API-Key
+    api-key: ${API_KEY}
+  file-operation:
+    whitelist-dir: ${FILE_WHITELIST_DIR:/data/taskflow}
+  weather:
+    api-key: ${WEATHER_API_KEY:}
+    api-base-url: ${WEATHER_API_BASE_URL:}
+  search:
+    api-key: ${SEARCH_API_KEY:}
+    api-base-url: ${SEARCH_API_BASE_URL:}
