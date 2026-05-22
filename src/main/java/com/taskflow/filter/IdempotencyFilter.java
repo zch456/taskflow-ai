@@ -8,18 +8,23 @@ import jakarta.servlet.ServletRequest;
 import jakarta.servlet.ServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Component
 public class IdempotencyFilter implements Filter {
 
-    private final Map<String, String> idempotencyStore =
-            Collections.synchronizedMap(new java.util.LinkedHashMap<>() {
+    private static final Duration IDEMPOTENCY_TTL = Duration.ofHours(24);
+
+    private final Map<String, String> localStore =
+            Collections.synchronizedMap(new LinkedHashMap<>() {
                 private static final int MAX_ENTRIES = 10_000;
                 @Override
                 protected boolean removeEldestEntry(Map.Entry<String, String> eldest) {
@@ -27,6 +32,9 @@ public class IdempotencyFilter implements Filter {
                 }
             });
     private final TaskFlowProperties properties;
+
+    @Autowired(required = false)
+    private RedisTemplate<String, Object> redisTemplate;
 
     public IdempotencyFilter(TaskFlowProperties properties) {
         this.properties = properties;
@@ -43,8 +51,7 @@ public class IdempotencyFilter implements Filter {
             return;
         }
 
-        String method = httpRequest.getMethod();
-        if (!"POST".equalsIgnoreCase(method)) {
+        if (!"POST".equalsIgnoreCase(httpRequest.getMethod())) {
             chain.doFilter(request, response);
             return;
         }
@@ -56,12 +63,11 @@ public class IdempotencyFilter implements Filter {
         }
 
         // Check if this key has been processed
-        String existingResult = idempotencyStore.get(idempotencyKey);
-        if (existingResult != null) {
+        if (isDuplicate(idempotencyKey)) {
             httpResponse.setStatus(HttpServletResponse.SC_CONFLICT);
             httpResponse.setContentType("application/json");
             httpResponse.getWriter().write("""
-                    {"code": "RATE_LIMITED", "message": "幂等键已被使用", "detail": "key: %s"}
+                    {"code": "IDEMPOTENCY_CONFLICT", "message": "幂等键已被使用", "detail": "key: %s"}
                     """.formatted(idempotencyKey));
             return;
         }
@@ -70,7 +76,23 @@ public class IdempotencyFilter implements Filter {
 
         // Store key on successful response
         if (httpResponse.getStatus() >= 200 && httpResponse.getStatus() < 300) {
-            idempotencyStore.put(idempotencyKey, "");
+            store(idempotencyKey);
+        }
+    }
+
+    private boolean isDuplicate(String key) {
+        if (redisTemplate != null) {
+            return Boolean.TRUE.equals(redisTemplate.hasKey("taskflow:idempotency:" + key));
+        }
+        return localStore.containsKey(key);
+    }
+
+    private void store(String key) {
+        if (redisTemplate != null) {
+            redisTemplate.opsForValue()
+                    .set("taskflow:idempotency:" + key, "1", IDEMPOTENCY_TTL);
+        } else {
+            localStore.put(key, "");
         }
     }
 }

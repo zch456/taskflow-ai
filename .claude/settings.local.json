@@ -10,7 +10,8 @@
       "Bash(./mvnw test *)",
       "Read(//Users/chenghe/**)",
       "Read(//Users/chenghe/.claude/**)",
-      "Bash(git *)"
+      "Bash(git *)",
+      "Bash(redis-cli ping *)"
     ]
   }
 }

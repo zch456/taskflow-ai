@@ -64,4 +64,15 @@ class SearchToolTest {
         assertFalse(result.success());
         assertTrue(result.errorMessage().contains("query"));
     }
+
+    @Test
+    void shouldHandleApiErrorResponse() {
+        mockServer.enqueue(new MockResponse()
+                .setResponseCode(401)
+                .setBody("Unauthorized"));
+
+        ToolResult result = searchTool.execute(Map.of("query", "test"));
+        assertFalse(result.success());
+        assertTrue(result.errorMessage().contains("HTTP 401"));
+    }
 }

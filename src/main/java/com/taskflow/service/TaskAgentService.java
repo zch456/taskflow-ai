@@ -14,6 +14,7 @@ import com.taskflow.exception.TaskFlowException;
 import com.taskflow.repository.TaskExecutionRepository;
 import com.taskflow.tool.Tool;
 import com.taskflow.tool.registry.ToolManager;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -35,20 +36,27 @@ public class TaskAgentService {
     private final LLMClient llmClient;
     private final TaskFlowProperties properties;
     private final SseService sseService;
+    private final RedisCacheService cacheService;
     private final ExecutorService asyncExecutor = Executors.newVirtualThreadPerTaskExecutor();
 
     public TaskAgentService(ToolManager toolManager, LLMClient llmClient,
                             TaskFlowProperties properties,
                             TaskExecutionRepository repository,
-                            SseService sseService) {
+                            SseService sseService,
+                            @Autowired(required = false) RedisCacheService cacheService) {
         this.toolManager = toolManager;
         this.repository = repository;
         this.llmClient = llmClient;
         this.properties = properties;
         this.sseService = sseService;
+        this.cacheService = cacheService;
+
+        boolean cacheEnabled = properties.getAgent().isCacheEnabled();
         this.agent = new TaskAgentImpl(toolManager, llmClient,
                 properties.getAgent().getMaxSteps(),
-                properties.getAgent().getTimeoutSeconds());
+                properties.getAgent().getTimeoutSeconds(),
+                null,
+                cacheEnabled ? cacheService : null);
     }
 
     @Transactional
@@ -61,7 +69,8 @@ public class TaskAgentService {
     public TaskResult executeTaskAsync(TaskRequest request) {
         TaskAgentImpl asyncAgent = new TaskAgentImpl(toolManager, llmClient,
                 request.maxStepsOrDefault(), request.timeoutOrDefault(),
-                sseService::publish);
+                sseService::publish,
+                properties.getAgent().isCacheEnabled() ? cacheService : null);
 
         CompletableFuture<TaskResult> future = CompletableFuture.supplyAsync(
                 () -> {

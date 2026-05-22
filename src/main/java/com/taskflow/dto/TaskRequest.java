@@ -9,7 +9,7 @@ public record TaskRequest(
         Integer maxSteps
 ) {
     public int timeoutOrDefault() {
-        return timeout != null && timeout > 0 ? timeout : 30;
+        return timeout != null && timeout > 0 ? timeout : 60;
     }
 
     public int maxStepsOrDefault() {

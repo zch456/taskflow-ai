@@ -35,10 +35,10 @@ public class ExecutionStepEntity {
     @Column(nullable = false, length = 100)
     private String toolName;
 
-    @Column(length = 2000)
+    @Column(columnDefinition = "TEXT")
     private String inputParams;
 
-    @Column(length = 5000)
+    @Column(columnDefinition = "TEXT")
     private String outputResult;
 
     private long executionTimeMs;

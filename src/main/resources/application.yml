@@ -2,14 +2,27 @@ spring:
   application:
     name: taskflow-ai
   jpa:
+    database: postgresql
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
     show-sql: false
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: update
+    properties:
+      hibernate:
+        jdbc:
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
   datasource:
-    url: jdbc:h2:mem:taskflow;DB_CLOSE_DELAY=-1
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:taskflow}
+    driver-class-name: org.postgresql.Driver
+    username: ${DB_USER:taskflow}
+    password: ${DB_PASSWORD:taskflow}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2000ms
 
 server:
   port: 8080
@@ -24,13 +37,6 @@ management:
       prometheus:
         enabled: true
 
-# Redis (disabled by default for local dev; enable with spring.data.redis.host)
-# spring:
-#   data:
-#     redis:
-#       host: localhost
-#       port: 6379
-#       timeout: 2000ms
 
 springdoc:
   api-docs:
@@ -45,8 +51,9 @@ taskflow:
     whitelist-dir: /tmp/taskflow
   agent:
     max-steps: 10
-    timeout-seconds: 30
-    cache-enabled: false
+    timeout-seconds: 60
+    cache-enabled: true
+    idempotency-enabled: true
   llm:
     provider: deepseek
     model: deepseek-v4-flash

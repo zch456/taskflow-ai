@@ -6,10 +6,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.taskflow.dto.TaskRequest;
 import com.taskflow.entity.ExecutionStatus;
 import com.taskflow.service.LLMClient;
+import com.taskflow.service.RedisCacheService;
 import com.taskflow.tool.Tool;
 import com.taskflow.tool.ToolResult;
 import com.taskflow.tool.registry.ToolManager;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
+import java.util.HexFormat;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -22,20 +28,29 @@ public class TaskAgentImpl implements TaskAgent {
     private final int maxSteps;
     private final int timeoutSeconds;
     private final Consumer<TaskProgressEvent> progressCallback;
+    private final RedisCacheService cacheService;
 
     public TaskAgentImpl(ToolManager toolManager, LLMClient llmClient,
                          int maxSteps, int timeoutSeconds) {
-        this(toolManager, llmClient, maxSteps, timeoutSeconds, null);
+        this(toolManager, llmClient, maxSteps, timeoutSeconds, null, null);
     }
 
     public TaskAgentImpl(ToolManager toolManager, LLMClient llmClient,
                          int maxSteps, int timeoutSeconds,
                          Consumer<TaskProgressEvent> progressCallback) {
+        this(toolManager, llmClient, maxSteps, timeoutSeconds, progressCallback, null);
+    }
+
+    public TaskAgentImpl(ToolManager toolManager, LLMClient llmClient,
+                         int maxSteps, int timeoutSeconds,
+                         Consumer<TaskProgressEvent> progressCallback,
+                         RedisCacheService cacheService) {
         this.toolManager = toolManager;
         this.llmClient = llmClient;
         this.maxSteps = maxSteps;
         this.timeoutSeconds = timeoutSeconds;
         this.progressCallback = progressCallback;
+        this.cacheService = cacheService;
     }
 
     @Override
@@ -84,6 +99,13 @@ public class TaskAgentImpl implements TaskAgent {
                     break;
                 }
 
+                // Detect LLM stop intent: reasoning says done but extraneous tool was output
+                String reasoning = action.path("reasoning").asText("");
+                if (isStopIntent(reasoning) && allParamsAreNullOrEmpty(paramsNode)) {
+                    ctx.markCompleted(reasoning);
+                    break;
+                }
+
                 // Step 3.4: Execute tool
                 int stepIndex = ctx.getStepCount() + 1;
                 ExecutionStep step = new ExecutionStep(
@@ -96,10 +118,17 @@ public class TaskAgentImpl implements TaskAgent {
                 emitProgress(TaskProgressEvent.stepStarted(ctx.getTaskId(), stepIndex,
                         toolName, paramsNode));
 
+                @SuppressWarnings("unchecked")
+                Map<String, Object> toolParams = mapper.convertValue(paramsNode, Map.class);
+
+                // Safety valve: if same tool+params already called, skip and exit loop
+                if (isDuplicateCall(ctx, toolName, toolParams)) {
+                    ctx.markCompleted("已完成必要的工具调用");
+                    break;
+                }
+
                 try {
                     Tool tool = toolManager.getTool(toolName);
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> toolParams = mapper.convertValue(paramsNode, Map.class);
                     ToolResult toolResult = executeWithRetry(tool, toolParams);
 
                     step.complete(toolResult);
@@ -139,6 +168,7 @@ public class TaskAgentImpl implements TaskAgent {
                         break;
                     }
                 }
+
             }
 
             // Handle timeout / max steps reached
@@ -180,11 +210,49 @@ public class TaskAgentImpl implements TaskAgent {
     }
 
     private ToolResult executeWithRetry(Tool tool, Map<String, Object> params) {
+        // Check cache for identical tool call
+        if (cacheService != null) {
+            String paramsHash = hashParams(tool.getName(), params);
+            var cached = cacheService.getCachedToolResult(tool.getName(), paramsHash);
+            if (cached.isPresent()) {
+                return (ToolResult) cached.get();
+            }
+        }
+
         ToolResult result = tool.execute(params);
         for (int i = 0; i < tool.getMaxRetries() && !result.success(); i++) {
             result = tool.execute(params);
         }
+
+        // Cache successful results
+        if (cacheService != null && result.success()) {
+            String paramsHash = hashParams(tool.getName(), params);
+            cacheService.cacheToolResult(tool.getName(), paramsHash,
+                    result, Duration.ofMinutes(10));
+        }
+
         return result;
+    }
+
+    private String hashParams(String toolName, Map<String, Object> params) {
+        try {
+            // Normalize to a deterministic string: sorted keys, trimmed values
+            var normalized = new java.util.TreeMap<String, Object>();
+            for (var entry : params.entrySet()) {
+                Object value = entry.getValue();
+                if (value instanceof String s) {
+                    value = s.trim();
+                }
+                normalized.put(entry.getKey().trim(), value);
+            }
+            String input = toolName + ":" + normalized.toString();
+
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] hash = md.digest(input.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash).substring(0, 16);
+        } catch (NoSuchAlgorithmException e) {
+            return Integer.toHexString((toolName + params).hashCode());
+        }
     }
 
     private String buildPlanPrompt(String task) {
@@ -220,9 +288,11 @@ public class TaskAgentImpl implements TaskAgent {
                %s
                当前目标: %s
                已执行步骤: %d
-               最近结果: %s
 
-               根据当前情况，从可用工具中选择下一步应使用的工具，selected_tool必须使用上述工具名之一，返回JSON:
+               已执行步骤的详细结果:
+               %s
+
+               根据当前情况，从可用工具中选择下一步应使用的工具。注意：如果之前已调用过某个工具并获得有效结果，不要重复调用。如果任务目标已达成，设置 should_continue=false 结束任务。返回JSON:
                {
                  "reasoning": "选择原因",
                  "selected_tool": "工具名",
@@ -230,19 +300,21 @@ public class TaskAgentImpl implements TaskAgent {
                  "should_continue": true/false
                }
                """.formatted(toolsDesc.toString(), ctx.getOriginalTask(), ctx.getStepCount(),
-                summarizeHistory(ctx));
+                buildFullHistory(ctx));
     }
 
     private String buildReflectPrompt(ExecutionContext ctx) {
         return """
                原始任务: %s
                已执行步骤: %d
-               最新结果: %s
 
-               评估结果是否充分回答了原始任务，返回JSON:
+               已执行步骤的详细结果:
+               %s
+
+               评估上述所有步骤的结果是否已经充分回答了原始任务。如果信息已足够回答用户问题，返回 is_sufficient=true，不要继续索取更多信息。返回JSON:
                {"is_sufficient": true/false, "reasoning": "理由"}
                """.formatted(ctx.getOriginalTask(), ctx.getStepCount(),
-                summarizeHistory(ctx));
+                buildFullHistory(ctx));
     }
 
     private String buildSynthesisPrompt(ExecutionContext ctx) {
@@ -265,10 +337,64 @@ public class TaskAgentImpl implements TaskAgent {
                """.formatted(ctx.getOriginalTask(), history.toString());
     }
 
-    private String summarizeHistory(ExecutionContext ctx) {
+    private String buildFullHistory(ExecutionContext ctx) {
         if (ctx.getExecutionHistory().isEmpty()) return "无";
-        var last = ctx.getExecutionHistory().get(ctx.getExecutionHistory().size() - 1);
-        return last.getOutputResult() != null ? last.getOutputResult() : "执行中";
+        var sb = new StringBuilder();
+        for (ExecutionStep step : ctx.getExecutionHistory()) {
+            sb.append("步骤").append(step.getStepIndex())
+                    .append(" [").append(step.getToolName()).append("]: ");
+            if (step.getOutputResult() != null) {
+                String output = step.getOutputResult();
+                // Truncate very long outputs to prevent prompt overflow
+                if (output.length() > 800) {
+                    output = output.substring(0, 800) + "...(截断)";
+                }
+                sb.append(output);
+            } else {
+                sb.append("执行失败: ").append(step.getErrorMessage());
+            }
+            sb.append("\n");
+        }
+        return sb.toString();
+    }
+
+    private boolean isStopIntent(String reasoning) {
+        if (reasoning == null || reasoning.isBlank()) return false;
+        String lower = reasoning.toLowerCase();
+        return lower.contains("无需") || lower.contains("结束") || lower.contains("不需要")
+                || lower.contains("已经足够") || lower.contains("已经完成")
+                || lower.contains("no need") || lower.contains("sufficient");
+    }
+
+    private boolean allParamsAreNullOrEmpty(JsonNode paramsNode) {
+        if (paramsNode.isEmpty()) return true;
+        var fields = paramsNode.fields();
+        while (fields.hasNext()) {
+            var entry = fields.next();
+            JsonNode value = entry.getValue();
+            if (!value.isNull() && !value.asText("").isBlank()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean isDuplicateCall(ExecutionContext ctx, String toolName,
+                                      Map<String, Object> params) {
+        String currentHash = hashParams(toolName, params);
+        return ctx.getExecutionHistory().stream()
+                .filter(s -> toolName.equals(s.getToolName()))
+                .anyMatch(s -> currentHash.equals(hashParams(toolName,
+                        parseParams(s.getInputParams()))));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> parseParams(String inputParams) {
+        try {
+            return mapper.readValue(inputParams, Map.class);
+        } catch (Exception e) {
+            return Map.of();
+        }
     }
 
     private String getNextPlannedTool(Plan plan, int currentStep) {

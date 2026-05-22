@@ -36,7 +36,7 @@ public class TaskExecutionEntity {
     @Column(nullable = false, length = 20)
     private ExecutionStatus status;
 
-    @Column(length = 5000)
+    @Column(columnDefinition = "TEXT")
     private String finalResult;
 
     private int stepCount;
@@ -44,7 +44,7 @@ public class TaskExecutionEntity {
     private int maxSteps;
     private int timeoutSeconds;
 
-    @Column(length = 5000)
+    @Column(columnDefinition = "TEXT")
     private String errorMessage;
 
     private long executionTimeMs;
