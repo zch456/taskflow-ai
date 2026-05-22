@@ -9,7 +9,8 @@
       "Bash(./mvnw compile *)",
       "Bash(./mvnw test *)",
       "Read(//Users/chenghe/**)",
-      "Read(//Users/chenghe/.claude/**)"
+      "Read(//Users/chenghe/.claude/**)",
+      "Bash(git *)"
     ]
   }
 }

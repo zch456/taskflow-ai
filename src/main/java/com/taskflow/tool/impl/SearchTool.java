@@ -4,9 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.taskflow.tool.ParameterSchema;
 import com.taskflow.tool.Tool;
 import com.taskflow.tool.ToolResult;
-import okhttp3.HttpUrl;
+import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
+import okhttp3.RequestBody;
 import okhttp3.Response;
 
 import java.io.IOException;
@@ -17,6 +18,8 @@ import java.util.concurrent.TimeUnit;
 public class SearchTool implements Tool {
 
     private static final ObjectMapper mapper = new ObjectMapper();
+    private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
+
     private final String apiBaseUrl;
     private final String apiKey;
     private final OkHttpClient httpClient;
@@ -61,28 +64,27 @@ public class SearchTool implements Tool {
         }
 
         try {
-            HttpUrl url = HttpUrl.parse(apiBaseUrl);
-            if (url == null) {
-                return ToolResult.failure("搜索API URL无效",
-                        System.currentTimeMillis() - start);
-            }
-            url = url.newBuilder()
-                    .addQueryParameter("q", query)
-                    .addQueryParameter("count", String.valueOf(count))
-                    .addQueryParameter("key", apiKey)
-                    .build();
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("api_key", apiKey);
+            body.put("query", query);
+            body.put("search_depth", "basic");
+            body.put("max_results", count);
+
+            String json = mapper.writeValueAsString(body);
             Request request = new Request.Builder()
-                    .url(url)
-                    .get()
+                    .url(apiBaseUrl)
+                    .post(RequestBody.create(json, JSON))
                     .build();
 
             try (Response response = httpClient.newCall(request).execute()) {
                 if (!response.isSuccessful()) {
-                    return ToolResult.failure("搜索API调用失败: HTTP " + response.code(),
+                    String errorBody = response.body() != null ? response.body().string() : "";
+                    return ToolResult.failure("搜索API调用失败: HTTP " + response.code()
+                            + " " + errorBody,
                             System.currentTimeMillis() - start);
                 }
-                String body = response.body() != null ? response.body().string() : "{}";
-                Object data = mapper.readValue(body, Object.class);
+                String responseBody = response.body() != null ? response.body().string() : "{}";
+                Object data = mapper.readValue(responseBody, Object.class);
                 return ToolResult.success(data, System.currentTimeMillis() - start);
             }
         } catch (IOException e) {
