@@ -1,5 +1,6 @@
 package com.taskflow.exception;
 
+import io.github.resilience4j.ratelimiter.RequestNotPermitted;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -19,6 +20,14 @@ import java.util.UUID;
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(RequestNotPermitted.class)
+    public ResponseEntity<ErrorResponse> handleRateLimited(RequestNotPermitted ex) {
+        String traceId = UUID.randomUUID().toString();
+        log.warn("Rate limited [{}]: {}", traceId, ex.getMessage());
+        return ResponseEntity.status(ErrorCode.RATE_LIMITED.getHttpStatus())
+                .body(ErrorResponse.of(ErrorCode.RATE_LIMITED, "请求频率超限，请稍后重试", traceId));
+    }
 
     @ExceptionHandler(TaskFlowException.class)
     public ResponseEntity<ErrorResponse> handleTaskFlowException(TaskFlowException ex) {

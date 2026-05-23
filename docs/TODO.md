@@ -1,113 +1,35 @@
-# TaskFlow AI 开发进度
+# TaskFlow AI TODO
 
-## ✅ 已完成
-
-### Phase 1: 项目骨架 + 核心领域模型
-- [x] Maven 项目骨架 (JDK 21, Spring Boot 3.2.5, JUnit 5, Mockito)
-- [x] `ExecutionStatus` 枚举 (PENDING/RUNNING/COMPLETED/FAILED/TIMEOUT)
-- [x] `Tool` 接口 + `ToolResult` + `ParameterSchema`
-- [x] `ExecutionContext` (含 traceId, retryCount, maxSteps, expiresAt)
-- [x] `Plan` + `PlannedStep` + `ExecutionStep` + `TaskResult`
-- [x] `TaskRequest` DTO
-- [x] **TDD**: `ToolManager` — 5 tests
-- [x] **TDD**: `ExecutionContext` — 10 tests
-- [x] **TDD**: `CalculatorTool` — 10 tests
-
-### Phase 2: Agent 执行引擎 + LLM 客户端 + 工具
-- [x] **TDD**: `LLMClient` — 5 tests
-- [x] **TDD**: `WeatherTool` — 6 tests
-- [x] **TDD**: `SearchTool` — 4 tests
-- [x] **TDD**: `TaskAgentImpl` (ReAct 循环引擎) — 6 tests
-- [x] `TaskAgentService` + `TaskFlowProperties` + `AppConfig`
-
-### Phase 3: REST API + 持久化
-- [x] `TaskAgentController` — 5 端点 (execute/status/history/details) + 7 tests
-- [x] `ToolsController` — GET /api/v1/tools
-- [x] JPA Entity: `TaskExecutionEntity` + `ExecutionStepEntity` + Repository
-- [x] 集成测试 `TaskAgentIntegrationTest` — 6 tests
-- [x] `GlobalExceptionHandler` — 12 错误码 (对齐 PRD)
-- [x] `ApiKeyInterceptor` + `WebConfig` — API Key 鉴权
-- [x] Actuator 健康检查 + Prometheus 指标
-- [x] `ToolRegistration` — 自动注册工具
-
-### Phase 4: 缓存 + 部署
-- [x] `CacheConfig` — Caffeine 缓存
-- [x] `IdempotencyFilter` — X-Idempotency-Key
-- [x] `Dockerfile` + `docker-compose.yml`
-
-### Phase 5: 前端管理界面
-- [x] `HomeController` — GET /api (API 索引)
-- [x] `static/index.html` — SPA 管理界面
-  - 任务提交 + 结果展示
-  - 执行历史表格 + 步骤详情
-  - 工具列表 + 健康状态
-  - 深色模式 + 响应式布局
-- [x] `需求文档.md` 新增第 14 章「前端管理界面」
-
-### Phase 6: 新工具 + Swagger
-- [x] `DatabaseTool` — SELECT 查询工具（参数化查询 + 安全校验）
-- [x] `FileOperationTool` — 文件操作工具（读/写/列表/删除，白名单路径限制）
-- [x] `JsonTool` — JSON 处理工具（解析/查询/属性重命名）
-- [x] **TDD**: `DatabaseTool` — 10 tests
-- [x] **TDD**: `FileOperationTool` — 10 tests
-- [x] **TDD**: `JsonTool` — 12 tests
-- [x] `ToolRegistration` 已注册全部 6 个工具
-- [x] Swagger / OpenAPI 文档（springdoc-openapi）
-
-### Phase 7: 异步执行 + 基础设施
-- [x] `TaskProgressEvent` — 任务进度事件模型（7 种事件类型）
-- [x] `SseService` — SSE 实时推送服务（订阅/发布/完成）
-- [x] `TaskAgentImpl` — 支持进度回调（Consumer<TaskProgressEvent>）
-- [x] `TaskAgentService.executeTaskAsync` — 异步执行 + 虚拟线程池
-- [x] `TaskAgentController` — 新增 `/execute-async` + `/stream/{taskId}` 端点
-- [x] **TDD**: `TaskAgentTest` — 新增 progress callback 测试 (6→7)
-- [x] `RedisConfig` — RedisTemplate 配置（条件加载）
-- [x] `RedisCacheService` — 分布式工具结果缓存
-- [x] `DistributedLockService` — Redis 分布式锁（tryLock/release）
-- [x] `application-prod.yml` — PostgreSQL + Redis + 生产环境配置
-- [x] `pom.xml` — PostgreSQL 驱动 + Redis (Lettuce + Commons Pool2)
-- [x] `.github/workflows/ci.yml` — CI/CD Pipeline (Build → Test → Docker)
-- [x] `测试用例.md` — 完整测试用例文档（6 大类，92 条用例）
-
-**当前测试总计: 92 个，全部通过**
+> 更新日期: 2026-05-23 | 测试: 108 个，全部通过
 
 ---
 
-## 📋 待完成 (明天继续)
+## 高优先级
 
-### Phase 7: 后续增强
-- [ ] 压力测试 (JMeter / k6)
+- [x] **数据库迁移** — 引入 Flyway，替代 `ddl-auto: update`。创建 `V1__init.sql` 基线脚本 ✅ 2026-05-23
+  - 添加 `flyway-core` 依赖，`ddl-auto` 改为 `validate`，`baseline-on-migrate: true`
+  - 实际启动验证：Flyway 成功连接 PostgreSQL 17，基线版本 1 已创建
+- [x] **API 限流** — 接入 Resilience4j RateLimiter，防止 LLM API 费用失控。`RATE_LIMITED` 错误码已激活 ✅ 2026-05-23
+  - `@RateLimiter(name = "agent-execute")` 加在 `executeTask/executeTaskAsync`，默认 10 req/s
+  - curl 20 并发验证：10×202 + 10×429，429 响应体含 `errorCode: "RATE_LIMITED"`
+- [x] **压力测试** — 按 `docs/压测方案.md` 执行场景 3（Mock 高并发）和场景 4（幂等性） ✅ 2026-05-23
+  - 场景 3：20 线程 × 5 任务 = 100 任务全部完成，耗时 4.7s
+  - 场景 4：10 并发同 key → 1×202 + 9×409（通过），发现并修复幂等性竞态条件 bug
+  - 场景 1/2/5/6/7 需真实基础设施，详见 `docs/压测方案.md` 第八章
 
----
+## 中优先级
 
-## 项目结构 (当前)
+- [ ] **结构化日志** — 创建 `logback-spring.xml`，加入滚动文件 + JSON 格式输出，对接 ELK/Datadog
+- [ ] **docker-compose 完善** — 取消注释 PostgreSQL 和 Redis 服务，添加共享网络，实现 `docker compose up` 一键启动
+- [ ] **部署文档** — 创建 `docs/部署指南.md`，包含 K8s 部署清单、环境变量参考表、容量规划建议
+- [ ] **Swagger 注解** — 给 Controller 加 `@Operation`，给 DTO 加 `@Schema`，补 `@OpenAPIDefinition`
+- [ ] **CORS 配置** — `WebConfig` 增加 `addCorsMappings()`，当前仅同源 SPA 不受影响
 
-```
-src/main/java/com/taskflow/
-├── Application.java
-├── agent/          TaskAgent, TaskAgentImpl, ExecutionContext, ExecutionStep,
-│                   Plan, TaskResult, TaskProgressEvent
-├── config/         AppConfig, CacheConfig, RedisConfig, TaskFlowProperties,
-│                   WebConfig, ApiKeyInterceptor, ToolRegistration
-├── controller/     TaskAgentController, ToolsController, HomeController
-├── dto/            TaskRequest
-├── entity/         ExecutionStatus, TaskExecutionEntity, ExecutionStepEntity
-├── exception/      ErrorCode, ErrorResponse, GlobalExceptionHandler, TaskFlowException
-├── filter/         IdempotencyFilter
-├── repository/     TaskExecutionRepository, ExecutionStepRepository
-├── service/        TaskAgentService, LLMClient, SseService,
-│                   RedisCacheService, DistributedLockService
-└── tool/           Tool, ToolResult, ParameterSchema, ToolManager,
-                    CalculatorTool, WeatherTool, SearchTool,
-                    DatabaseTool, FileOperationTool, JsonTool
+## 低优先级
 
-src/main/resources/
-├── application.yml
-├── application-prod.yml      ← 生产环境配置
-└── static/index.html         ← 前端管理界面
-
-.github/workflows/
-└── ci.yml                    ← CI/CD Pipeline
-
-src/test/java/com/taskflow/    ← 92 tests
-```
+- [ ] **代码质量工具** — 添加 `.editorconfig`、Checkstyle/SpotBugs、Spotless Maven 插件
+- [ ] **自定义 Actuator 指标** — 任务执行数、工具调用次数、缓存命中率的 Micrometer 指标
+- [ ] **环境 Profile 拆分** — 从 default/prod 两个 profile 扩展出 dev/test/staging
+- [ ] **`.gitignore` 完善** — 补充 `*.log.*`、`*.swp`、`application-*.yml`
+- [ ] **`ExecutorService` 生命周期** — 当前 `asyncExecutor` 未在 JVM 关闭时 shutdown
+- [ ] **`LLMClient` apiKey 空值校验** — 缺少 apiKey 时提前报错，避免 `Authorization: Bearer ` 空 header

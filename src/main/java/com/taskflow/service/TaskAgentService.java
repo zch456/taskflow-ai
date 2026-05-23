@@ -14,6 +14,7 @@ import com.taskflow.exception.TaskFlowException;
 import com.taskflow.repository.TaskExecutionRepository;
 import com.taskflow.tool.Tool;
 import com.taskflow.tool.registry.ToolManager;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -60,12 +61,14 @@ public class TaskAgentService {
     }
 
     @Transactional
+    @RateLimiter(name = "agent-execute")
     public TaskResult executeTask(TaskRequest request) {
         TaskResult result = agent.execute(request);
         persistResult(result, request);
         return result;
     }
 
+    @RateLimiter(name = "agent-execute")
     public TaskResult executeTaskAsync(TaskRequest request) {
         TaskAgentImpl asyncAgent = new TaskAgentImpl(toolManager, llmClient,
                 request.maxStepsOrDefault(), request.timeoutOrDefault(),
